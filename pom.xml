@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.playground</groupId>
+    <artifactId>lambda-in-a-box</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+
+        <aws.lambda.version>2.1.1</aws.lambda.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.amazonaws</groupId>
+            <artifactId>aws-lambda-java-runtime-interface-client</artifactId>
+            <version>${aws.lambda.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/docker/${project.version}/build</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>docker</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+            </activation>
+            <build>
+                <plugins>
+                    <!-- Process and copy resources to be packaged into the docker image -->
+                    <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-resources-plugin</artifactId>
+                    <version>3.2.0</version>
+                    <configuration>
+                        <!-- Switch delimiters to work on application.properties, as ${} has special meaning -->
+                        <delimiters>
+                            <delimiter>@</delimiter>
+                        </delimiters>
+                        <useDefaultDelimiters>false</useDefaultDelimiters>
+                    </configuration>
+                    <executions>
+                        <!-- Prepare configuration used by the docker-image build -->
+                        <execution>
+                            <id>copy-docker-resources</id>
+                            <phase>prepare-package</phase>
+                            <goals>
+                                <goal>copy-resources</goal>
+                            </goals>
+                            <configuration>
+                                <outputDirectory>${project.build.directory}</outputDirectory>
+                                <resources>
+                                    <resource>
+                                        <directory>src/main/docker</directory>
+                                        <targetPath>${project.build.directory}/docker/${project.version}/build</targetPath>
+                                        <filtering>true</filtering>
+                                    </resource>
+                                </resources>
+                            </configuration>
+                        </execution>
+                        <!-- Prepare resources used by the docker-image build -->
+                        <execution>
+                            <id>copy-application-resources</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>copy-resources</goal>
+                            </goals>
+                            <configuration>
+                                <outputDirectory>${project.build.directory}</outputDirectory>
+                                <resources>
+                                    <resource>
+                                        <directory>${project.build.directory}/</directory>
+                                        <includes>
+                                            <include>classes/org/playground/lambda/Handler.class</include>
+                                        </includes>
+                                        <targetPath>${project.build.directory}/docker/${project.version}/build</targetPath>
+                                        <filtering>false</filtering>
+                                    </resource>
+                                </resources>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+                    <!-- Define how to build the docker image -->
+                    <!-- ref: https://dmp.fabric8.io/#build-configuration -->
+                    <plugin>
+                        <groupId>io.fabric8</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <version>0.39.1</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>io.fabric8</groupId>
+                                <artifactId>run-java-sh</artifactId>
+                                <version>1.1.1</version>
+                            </dependency>
+                        </dependencies>
+                        <executions>
+                            <execution>
+                                <id>build-image</id>
+                                <phase>install</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <verbose>true</verbose>
+                            <images>
+                                <image>
+                                    <alias>${project.artifactId}</alias>
+                                    <name>playground/${project.artifactId}:${project.version}</name>
+                                    <build>
+                                        <cleanup>true</cleanup>
+                                        <dockerFileDir>${project.build.directory}/docker/${project.version}/build</dockerFileDir>
+                                        <tags>
+                                            <tag>latest</tag>
+                                            <tag>${project.version}</tag>
+                                        </tags>
+                                    </build>
+                                </image>
+                            </images>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
